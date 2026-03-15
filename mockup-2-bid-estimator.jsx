@@ -1,0 +1,751 @@
+import React, { useState, useEffect } from 'react';
+import {
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
+// Simple icon components to avoid library dependency issues
+const ChevronRight = ({ size = 20 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>;
+const ChevronLeft = ({ size = 20 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>;
+const Sparkles = ({ size = 20, className = "" }) => <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z"/></svg>;
+const CheckCircle = ({ size = 24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>;
+const TrendingUp = ({ size = 20, className = "" }) => <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>;
+const Download = ({ size = 20 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+
+// Asset estimation engine based on facility type and size
+const getAssetEstimates = (facilityType, sqft, density, floors, age) => {
+  const baseAssets = {
+    'Banking Branch': {
+      'HVAC': { min: 8, max: 12, cost: [1200, 1800] },
+      'Fire Safety': { min: 6, max: 10, cost: [800, 1200] },
+      'Security': { min: 4, max: 8, cost: [1500, 2500] },
+      'Electrical': { min: 10, max: 15, cost: [900, 1400] },
+      'Lighting': { min: 12, max: 18, cost: [150, 250] },
+      'Plumbing': { min: 5, max: 8, cost: [600, 1000] },
+      'Access Control': { min: 3, max: 5, cost: [2000, 3000] },
+      'Data/Comms': { min: 4, max: 7, cost: [1800, 2500] },
+      'Lifts': { min: 1, max: 2, cost: [8000, 12000] },
+      'Cleaning': { min: 2, max: 4, cost: [500, 800] },
+    },
+    'Banking Data Centre': {
+      'HVAC': { min: 16, max: 24, cost: [3000, 5000] },
+      'Fire Safety': { min: 8, max: 12, cost: [2000, 3500] },
+      'Security': { min: 8, max: 12, cost: [3000, 5000] },
+      'Electrical': { min: 20, max: 30, cost: [2000, 3500] },
+      'UPS Systems': { min: 4, max: 8, cost: [15000, 25000] },
+      'Power Distribution': { min: 6, max: 10, cost: [4000, 7000] },
+      'Backup Generators': { min: 2, max: 4, cost: [25000, 40000] },
+      'Cable Management': { min: 8, max: 12, cost: [1500, 2500] },
+      'Monitoring': { min: 4, max: 6, cost: [5000, 8000] },
+    },
+    'Banking HQ Office': {
+      'HVAC': { min: 12, max: 18, cost: [1500, 2300] },
+      'Fire Safety': { min: 8, max: 12, cost: [1000, 1500] },
+      'Security': { min: 6, max: 10, cost: [2000, 3500] },
+      'Electrical': { min: 15, max: 22, cost: [1200, 1800] },
+      'Lighting': { min: 20, max: 30, cost: [200, 350] },
+      'Plumbing': { min: 8, max: 12, cost: [800, 1200] },
+      'Access Control': { min: 6, max: 10, cost: [2500, 4000] },
+      'Lifts': { min: 2, max: 4, cost: [10000, 15000] },
+      'Parking Systems': { min: 1, max: 3, cost: [5000, 8000] },
+      'Data/Comms': { min: 8, max: 12, cost: [2000, 3000] },
+    },
+    'Life Sciences Laboratory': {
+      'HVAC': { min: 10, max: 16, cost: [2500, 4000] },
+      'Fume Hoods': { min: 4, max: 8, cost: [3000, 5000] },
+      'Fire Safety': { min: 8, max: 12, cost: [1500, 2500] },
+      'Electrical': { min: 12, max: 18, cost: [1500, 2500] },
+      'Gas Systems': { min: 6, max: 10, cost: [2000, 3500] },
+      'Water Systems': { min: 4, max: 8, cost: [2500, 4000] },
+      'Emergency Showers': { min: 2, max: 4, cost: [1500, 2500] },
+      'Monitoring': { min: 4, max: 6, cost: [3000, 5000] },
+      'Autoclaves': { min: 1, max: 3, cost: [8000, 12000] },
+      'Lighting': { min: 8, max: 12, cost: [300, 500] },
+    },
+    'Life Sciences Cleanroom': {
+      'HVAC': { min: 12, max: 18, cost: [4000, 6500] },
+      'Particle Monitoring': { min: 4, max: 6, cost: [2500, 4000] },
+      'Fire Safety': { min: 6, max: 10, cost: [1200, 2000] },
+      'Electrical': { min: 10, max: 15, cost: [1800, 3000] },
+      'Pass-Through': { min: 2, max: 4, cost: [5000, 8000] },
+      'Water Systems': { min: 3, max: 6, cost: [3000, 5000] },
+      'Gowning Systems': { min: 2, max: 4, cost: [2000, 3500] },
+      'Pressure Monitoring': { min: 3, max: 5, cost: [1500, 2500] },
+      'Lighting': { min: 6, max: 10, cost: [400, 700] },
+    },
+    'Life Sciences Manufacturing': {
+      'HVAC': { min: 16, max: 24, cost: [3500, 5500] },
+      'Process Equipment': { min: 8, max: 14, cost: [5000, 10000] },
+      'Fire Safety': { min: 10, max: 15, cost: [2000, 3500] },
+      'Electrical': { min: 18, max: 28, cost: [2000, 3500] },
+      'Water Systems': { min: 6, max: 10, cost: [3000, 5000] },
+      'Gas Systems': { min: 8, max: 12, cost: [2500, 4000] },
+      'Waste Management': { min: 4, max: 8, cost: [1500, 2500] },
+      'Security': { min: 4, max: 8, cost: [2000, 3500] },
+      'Monitoring': { min: 6, max: 10, cost: [4000, 6000] },
+    },
+    'Warehouse': {
+      'HVAC': { min: 6, max: 10, cost: [1500, 2500] },
+      'Fire Safety': { min: 8, max: 12, cost: [1200, 2000] },
+      'Security': { min: 3, max: 6, cost: [1200, 2000] },
+      'Electrical': { min: 8, max: 12, cost: [1000, 1500] },
+      'Lighting': { min: 10, max: 16, cost: [200, 300] },
+      'Doors/Gates': { min: 4, max: 8, cost: [800, 1500] },
+      'Racking': { min: 1, max: 3, cost: [2000, 4000] },
+      'Ventilation': { min: 2, max: 4, cost: [800, 1500] },
+      'Plumbing': { min: 2, max: 4, cost: [400, 700] },
+    },
+    'General Office': {
+      'HVAC': { min: 8, max: 12, cost: [1200, 1800] },
+      'Fire Safety': { min: 6, max: 10, cost: [800, 1200] },
+      'Electrical': { min: 10, max: 15, cost: [900, 1400] },
+      'Lighting': { min: 12, max: 18, cost: [150, 250] },
+      'Plumbing': { min: 4, max: 8, cost: [500, 900] },
+      'Access Control': { min: 2, max: 4, cost: [1500, 2500] },
+      'Security': { min: 2, max: 4, cost: [1000, 1500] },
+      'Data/Comms': { min: 3, max: 6, cost: [1200, 1800] },
+      'Lifts': { min: 1, max: 2, cost: [8000, 12000] },
+      'Cleaning': { min: 1, max: 3, cost: [400, 600] },
+    },
+  };
+
+  const assetCategories = baseAssets[facilityType] || baseAssets['General Office'];
+  const densityMultiplier = { 'Low': 0.75, 'Medium': 1.0, 'High': 1.25 }[density] || 1.0;
+  const sqftMultiplier = Math.max(0.5, Math.min(2.0, sqft / 5000));
+  const ageMultiplier = age === '0-5 years' ? 0.85 : age === '5-10 years' ? 1.0 : 1.15;
+
+  const estimates = Object.entries(assetCategories).map(([asset, data]) => {
+    const baseQty = (data.min + data.max) / 2;
+    const quantity = Math.round(baseQty * densityMultiplier * sqftMultiplier * ageMultiplier);
+    const costPerYear = (quantity * (data.cost[0] + data.cost[1]) / 2 * 0.15);
+    const confidence = sqft > 3000 && floors > 1 ? 'High' : sqft > 2000 ? 'Medium' : 'Low';
+
+    return {
+      asset,
+      quantity,
+      costPerYear: Math.round(costPerYear),
+      confidence,
+      costRange: data.cost,
+    };
+  });
+
+  return estimates;
+};
+
+// SFG20 procedure mapping
+const getMappedProcedures = (assets) => {
+  const skillMix = { Mechanical: 0, Electrical: 0, Specialist: 0, General: 0 };
+  const frequencies = { 'Daily': 0, 'Weekly': 0, 'Monthly': 0, 'Quarterly': 0, 'Annual': 0 };
+  let totalHours = 0;
+
+  assets.forEach((item) => {
+    const { asset, quantity } = item;
+    let hoursPerYear = 0;
+
+    if (asset.includes('HVAC')) {
+      hoursPerYear = quantity * 120;
+      skillMix.Mechanical += quantity * 80;
+      skillMix.Electrical += quantity * 40;
+      frequencies.Monthly += quantity * 12;
+    } else if (asset.includes('Electrical') || asset.includes('Power')) {
+      hoursPerYear = quantity * 80;
+      skillMix.Electrical += quantity * 80;
+      frequencies.Quarterly += quantity * 4;
+    } else if (asset.includes('Fire') || asset.includes('Safety')) {
+      hoursPerYear = quantity * 60;
+      skillMix.Specialist += quantity * 60;
+      frequencies.Quarterly += quantity * 4;
+    } else if (asset.includes('Security') || asset.includes('Access')) {
+      hoursPerYear = quantity * 40;
+      skillMix.Specialist += quantity * 40;
+      frequencies.Monthly += quantity * 12;
+    } else if (asset.includes('Plumbing') || asset.includes('Water')) {
+      hoursPerYear = quantity * 70;
+      skillMix.Mechanical += quantity * 70;
+      frequencies.Quarterly += quantity * 4;
+    } else if (asset.includes('Lighting') || asset.includes('Cleaning')) {
+      hoursPerYear = quantity * 30;
+      skillMix.General += quantity * 30;
+      frequencies.Weekly += quantity * 52;
+    } else {
+      hoursPerYear = quantity * 50;
+      skillMix.General += quantity * 30;
+      skillMix.Specialist += quantity * 20;
+      frequencies.Monthly += quantity * 12;
+    }
+
+    totalHours += hoursPerYear;
+  });
+
+  const skillData = [
+    { name: 'Mechanical', value: Math.max(1, skillMix.Mechanical) },
+    { name: 'Electrical', value: Math.max(1, skillMix.Electrical) },
+    { name: 'Specialist', value: Math.max(1, skillMix.Specialist) },
+    { name: 'General', value: Math.max(1, skillMix.General) },
+  ];
+
+  const frequencyData = [
+    { name: 'Daily', value: frequencies['Daily'] },
+    { name: 'Weekly', value: frequencies['Weekly'] },
+    { name: 'Monthly', value: frequencies['Monthly'] },
+    { name: 'Quarterly', value: frequencies['Quarterly'] },
+    { name: 'Annual', value: frequencies['Annual'] },
+  ];
+
+  return { totalHours, skillData, frequencyData };
+};
+
+// Historical bid data for comparison
+const getHistoricalComparison = (facilityType, annualMaintenance) => {
+  const comparisons = {
+    'Banking Branch': { avg: 42000, low: 35000, high: 55000 },
+    'Banking Data Centre': { avg: 180000, low: 150000, high: 220000 },
+    'Banking HQ Office': { avg: 95000, low: 80000, high: 120000 },
+    'Life Sciences Laboratory': { avg: 72000, low: 60000, high: 90000 },
+    'Life Sciences Cleanroom': { avg: 125000, low: 100000, high: 160000 },
+    'Life Sciences Manufacturing': { avg: 180000, low: 150000, high: 220000 },
+    'Warehouse': { avg: 28000, low: 20000, high: 40000 },
+    'General Office': { avg: 45000, low: 35000, high: 60000 },
+  };
+
+  return comparisons[facilityType] || comparisons['General Office'];
+};
+
+export default function BidEstimatorTool() {
+  const [step, setStep] = useState(1);
+  const [facilityType, setFacilityType] = useState('Banking Branch');
+  const [sqft, setSqft] = useState(5000);
+  const [density, setDensity] = useState('Medium');
+  const [country, setCountry] = useState('UK');
+  const [floors, setFloors] = useState(2);
+  const [age, setAge] = useState('5-10 years');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [estimates, setEstimates] = useState([]);
+  const [adjustedEstimates, setAdjustedEstimates] = useState([]);
+
+  // Trigger AI analysis animation
+  useEffect(() => {
+    if (step === 2 && !analyzing && estimates.length === 0) {
+      setAnalyzing(true);
+      setTimeout(() => {
+        const newEstimates = getAssetEstimates(facilityType, sqft, density, floors, age);
+        setEstimates(newEstimates);
+        setAdjustedEstimates(newEstimates);
+        setAnalyzing(false);
+      }, 2000);
+    }
+  }, [step]);
+
+  const handleQuantityChange = (index, newQty) => {
+    const updated = [...adjustedEstimates];
+    updated[index].quantity = Math.max(0, newQty);
+    setAdjustedEstimates(updated);
+  };
+
+  const totalAssets = adjustedEstimates.reduce((sum, item) => sum + item.quantity, 0);
+  const totalAnnualMaintenance = adjustedEstimates.reduce((sum, item) => sum + item.costPerYear, 0);
+  const avgConfidence = estimates.length > 0
+    ? (adjustedEstimates.filter(e => e.confidence === 'High').length / adjustedEstimates.length * 100).toFixed(0)
+    : 0;
+
+  const procedures = adjustedEstimates.length > 0 ? getMappedProcedures(adjustedEstimates) : { totalHours: 0, skillData: [], frequencyData: [] };
+  const historical = getHistoricalComparison(facilityType, totalAnnualMaintenance);
+
+  const bidValue = totalAnnualMaintenance * (country === 'UK' ? 1.0 : country === 'US' ? 1.15 : 0.95);
+  const margin = Math.round(bidValue * 0.25);
+  const totalBid = Math.round(bidValue + margin);
+
+  const confidentColor = (conf) => {
+    return conf === 'High' ? 'bg-green-50 text-green-700' : conf === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-700';
+  };
+
+  const confidentBgColor = (conf) => {
+    return conf === 'High' ? 'bg-green-100' : conf === 'Medium' ? 'bg-yellow-100' : 'bg-red-100';
+  };
+
+  const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'];
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-4xl font-bold text-slate-900 flex items-center gap-3">
+                <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-2 rounded-lg">
+                  <Sparkles className="text-white" size={32} />
+                </div>
+                MyFM Bid Estimator
+              </h1>
+              <p className="text-slate-600 mt-2">AI-Powered Asset Estimation & Bid Generation</p>
+            </div>
+          </div>
+
+          {/* Step Indicator */}
+          <div className="flex items-center gap-2 mb-8">
+            {[1, 2, 3, 4].map((s) => (
+              <React.Fragment key={s}>
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${
+                    s === step
+                      ? 'bg-blue-600 text-white scale-110'
+                      : s < step
+                        ? 'bg-green-500 text-white'
+                        : 'bg-slate-300 text-slate-600'
+                  }`}
+                >
+                  {s < step ? <CheckCircle size={24} /> : s}
+                </div>
+                {s < 4 && (
+                  <div className={`flex-1 h-1 ${s < step ? 'bg-green-500' : 'bg-slate-300'}`} />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          <div className="flex gap-4 text-sm">
+            <div className="text-blue-600 font-semibold">Step {step}: {['Facility Profile', 'AI Asset Estimation', 'Procedure Mapping', 'Bid Summary'][step - 1]}</div>
+          </div>
+        </div>
+
+        {/* Step 1: Facility Profile */}
+        {step === 1 && (
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6">Facility Profile</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Facility Type */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Facility Type</label>
+                <select
+                  value={facilityType}
+                  onChange={(e) => setFacilityType(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option>Banking Branch</option>
+                  <option>Banking Data Centre</option>
+                  <option>Banking HQ Office</option>
+                  <option>Life Sciences Laboratory</option>
+                  <option>Life Sciences Cleanroom</option>
+                  <option>Life Sciences Manufacturing</option>
+                  <option>Warehouse</option>
+                  <option>General Office</option>
+                </select>
+              </div>
+
+              {/* Country */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Country</label>
+                <select
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option>UK</option>
+                  <option>US</option>
+                  <option>EU</option>
+                </select>
+              </div>
+
+              {/* Square Footage */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Square Footage: {sqft.toLocaleString()} sqft
+                </label>
+                <input
+                  type="range"
+                  min="1000"
+                  max="100000"
+                  step="500"
+                  value={sqft}
+                  onChange={(e) => setSqft(Number(e.target.value))}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-slate-500 mt-1">
+                  <span>1,000</span>
+                  <span>100,000</span>
+                </div>
+              </div>
+
+              {/* Density */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-3">Density</label>
+                <div className="flex gap-3">
+                  {['Low', 'Medium', 'High'].map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setDensity(d)}
+                      className={`flex-1 py-2 px-3 rounded-lg font-medium transition-all ${
+                        density === d
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Floors */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Number of Floors</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={floors}
+                  onChange={(e) => setFloors(Number(e.target.value))}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Building Age */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-3">Building Age</label>
+                <div className="flex gap-3">
+                  {['0-5 years', '5-10 years', '10+ years'].map((a) => (
+                    <button
+                      key={a}
+                      onClick={() => setAge(a)}
+                      className={`flex-1 py-2 px-3 rounded-lg font-medium transition-all text-sm ${
+                        age === a
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {a}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Navigation */}
+            <div className="flex justify-end gap-4 mt-8">
+              <button
+                onClick={() => setStep(2)}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all"
+              >
+                Continue <ChevronRight size={20} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: AI Asset Estimation */}
+        {step === 2 && (
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6">AI Asset Estimation</h2>
+
+            {analyzing ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="w-16 h-16 mb-4 flex items-center justify-center rounded-full bg-green-100">
+                  <Sparkles className="text-green-600 animate-pulse" size={32} />
+                </div>
+                <p className="text-slate-700 font-semibold text-lg">AI analyzing facility data...</p>
+                <p className="text-slate-500 text-sm mt-2">Processing historical data from 47 similar facilities</p>
+              </div>
+            ) : (
+              <>
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border border-blue-200">
+                    <p className="text-blue-600 text-sm font-semibold">Total Estimated Assets</p>
+                    <p className="text-3xl font-bold text-blue-900 mt-2">{totalAssets}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg border border-green-200">
+                    <p className="text-green-600 text-sm font-semibold">Annual Maintenance</p>
+                    <p className="text-3xl font-bold text-green-900 mt-2">£{totalAnnualMaintenance.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-lg border border-purple-200">
+                    <p className="text-purple-600 text-sm font-semibold">Confidence Score</p>
+                    <p className="text-3xl font-bold text-purple-900 mt-2">{avgConfidence}%</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-lg border border-orange-200">
+                    <p className="text-orange-600 text-sm font-semibold">Confidence</p>
+                    <p className="text-xl font-bold text-orange-900 mt-2">High</p>
+                  </div>
+                </div>
+
+                {/* AI Insights */}
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 p-4 mb-8 rounded">
+                  <div className="flex gap-3">
+                    <Sparkles className="text-green-600 flex-shrink-0" size={20} />
+                    <div>
+                      <p className="font-semibold text-green-900">AI Insight</p>
+                      <p className="text-green-700 text-sm mt-1">
+                        Based on 47 similar {facilityType} facilities, we recommend including dedicated UPS systems and enhanced monitoring for critical infrastructure areas. Historical data shows this reduces unplanned maintenance by 34%.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Asset Table */}
+                <div className="overflow-x-auto mb-8">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-slate-100 border-b-2 border-slate-300">
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Asset Type (NRM3)</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-slate-900">Quantity</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-slate-900">Confidence</th>
+                        <th className="px-4 py-3 text-right text-sm font-semibold text-slate-900">Unit Cost Range</th>
+                        <th className="px-4 py-3 text-right text-sm font-semibold text-slate-900">Annual Maintenance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adjustedEstimates.map((item, idx) => (
+                        <tr key={idx} className="border-b border-slate-200 hover:bg-slate-50">
+                          <td className="px-4 py-3 text-slate-900 font-medium">{item.asset}</td>
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.quantity}
+                              onChange={(e) => handleQuantityChange(idx, Number(e.target.value))}
+                              className="w-16 px-2 py-1 border border-slate-300 rounded text-center focus:ring-2 focus:ring-blue-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${confidentBgColor(item.confidence)}`}>
+                              {item.confidence}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-slate-700 text-sm">
+                            £{item.costRange[0].toLocaleString()} - £{item.costRange[1].toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-right text-slate-900 font-semibold">£{item.costPerYear.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Navigation */}
+                <div className="flex justify-between gap-4">
+                  <button
+                    onClick={() => setStep(1)}
+                    className="flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-900 font-semibold py-3 px-6 rounded-lg transition-all"
+                  >
+                    <ChevronLeft size={20} /> Back
+                  </button>
+                  <button
+                    onClick={() => setStep(3)}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all"
+                  >
+                    Continue <ChevronRight size={20} />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Step 3: Procedure Mapping */}
+        {step === 3 && procedures && (
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6">Procedure Mapping (SFG20)</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+              {/* Skill Mix Pie Chart */}
+              <div className="bg-slate-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">Skill Mix Distribution</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={procedures.skillData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      nameKey="name"
+                    >
+                      {COLORS.map((color, index) => (
+                        <Cell key={`cell-${index}`} fill={color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => `${value} hours`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Frequency Distribution Bar Chart */}
+              <div className="bg-slate-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">Maintenance Frequency</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={procedures.frequencyData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Labour Hours Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border border-blue-200">
+                <p className="text-blue-600 text-sm font-semibold">Total Labour Hours / Year</p>
+                <p className="text-3xl font-bold text-blue-900 mt-2">{Math.round(procedures.totalHours).toLocaleString()}</p>
+                <p className="text-blue-700 text-sm mt-2">Based on recommended maintenance procedures</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-6 rounded-lg border border-slate-200">
+                <p className="text-slate-600 text-sm font-semibold">Estimated Technician Team</p>
+                <p className="text-3xl font-bold text-slate-900 mt-2">{Math.ceil(procedures.totalHours / 2000)} FTE</p>
+                <p className="text-slate-700 text-sm mt-2">Full-time equivalents (2,000 hours/year)</p>
+              </div>
+            </div>
+
+            {/* Navigation */}
+            <div className="flex justify-between gap-4">
+              <button
+                onClick={() => setStep(2)}
+                className="flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-900 font-semibold py-3 px-6 rounded-lg transition-all"
+              >
+                <ChevronLeft size={20} /> Back
+              </button>
+              <button
+                onClick={() => setStep(4)}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all"
+              >
+                Continue <ChevronRight size={20} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Bid Summary */}
+        {step === 4 && (
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6">Bid Summary & Proposal</h2>
+
+            {/* Bid Value Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border border-blue-200">
+                <p className="text-blue-600 text-sm font-semibold">Base Annual Maintenance</p>
+                <p className="text-3xl font-bold text-blue-900 mt-2">£{totalAnnualMaintenance.toLocaleString()}</p>
+              </div>
+              <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg border border-green-200">
+                <p className="text-green-600 text-sm font-semibold">Profit Margin (25%)</p>
+                <p className="text-3xl font-bold text-green-900 mt-2">£{margin.toLocaleString()}</p>
+              </div>
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-lg border border-purple-200">
+                <p className="text-purple-600 text-sm font-semibold">Total Bid Value</p>
+                <p className="text-3xl font-bold text-purple-900 mt-2">£{totalBid.toLocaleString()}</p>
+              </div>
+            </div>
+
+            {/* Confidence Bands */}
+            <div className="bg-slate-50 p-6 rounded-lg mb-8 border border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Risk-Adjusted Pricing</h3>
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-sm font-medium text-slate-700">Conservative (Low Confidence)</span>
+                    <span className="text-sm font-bold text-slate-900">£{(totalBid * 1.15).toLocaleString()}</span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2">
+                    <div className="bg-red-500 h-2 rounded-full" style={{ width: '30%' }}></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-sm font-medium text-slate-700">Expected (Medium Confidence)</span>
+                    <span className="text-sm font-bold text-slate-900">£{totalBid.toLocaleString()}</span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2">
+                    <div className="bg-blue-500 h-2 rounded-full" style={{ width: '100%' }}></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-sm font-medium text-slate-700">Optimistic (High Confidence)</span>
+                    <span className="text-sm font-bold text-slate-900">£{(totalBid * 0.90).toLocaleString()}</span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2">
+                    <div className="bg-green-500 h-2 rounded-full" style={{ width: '70%' }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Historical Comparison */}
+            <div className="bg-gradient-to-r from-slate-50 to-slate-100 p-6 rounded-lg mb-8 border border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <TrendingUp className="text-blue-600" size={20} />
+                Historical Comparison
+              </h3>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-slate-600 text-sm mb-1">Historical Low</p>
+                  <p className="text-2xl font-bold text-slate-900">£{historical.low.toLocaleString()}</p>
+                </div>
+                <div className="border-l-2 border-r-2 border-slate-300">
+                  <p className="text-slate-600 text-sm mb-1">Historical Average</p>
+                  <p className="text-2xl font-bold text-slate-900">£{historical.avg.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-slate-600 text-sm mb-1">Historical High</p>
+                  <p className="text-2xl font-bold text-slate-900">£{historical.high.toLocaleString()}</p>
+                </div>
+              </div>
+              <p className="text-slate-600 text-sm mt-4">
+                Your bid of £{totalBid.toLocaleString()} is {totalBid > historical.avg ? 'above' : 'below'} the historical average for {facilityType} facilities.
+              </p>
+            </div>
+
+            {/* Key Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <p className="text-slate-600 text-xs font-semibold">Assets to Maintain</p>
+                <p className="text-2xl font-bold text-slate-900 mt-1">{totalAssets}</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <p className="text-slate-600 text-xs font-semibold">Annual Labour</p>
+                <p className="text-2xl font-bold text-slate-900 mt-1">{Math.round(procedures.totalHours).toLocaleString()}h</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <p className="text-slate-600 text-xs font-semibold">Team Size</p>
+                <p className="text-2xl font-bold text-slate-900 mt-1">{Math.ceil(procedures.totalHours / 2000)} FTE</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <p className="text-slate-600 text-xs font-semibold">Confidence</p>
+                <p className="text-2xl font-bold text-slate-900 mt-1">{avgConfidence}%</p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-between gap-4">
+              <button
+                onClick={() => setStep(3)}
+                className="flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-900 font-semibold py-3 px-6 rounded-lg transition-all"
+              >
+                <ChevronLeft size={20} /> Back
+              </button>
+              <div className="flex gap-4">
+                <button className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-900 font-semibold py-3 px-6 rounded-lg transition-all border border-slate-300">
+                  <Download size={20} /> Export PDF
+                </button>
+                <button className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg transition-all">
+                  <Sparkles size={20} /> Generate Full Proposal
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
